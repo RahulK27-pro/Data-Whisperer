@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Column {
   name: string;
-  type: "text" | "number";
+  type: "TEXT" | "INTEGER" | "REAL" | "BOOLEAN" | "TIMESTAMP" | "VARCHAR(255)" | "JSONB";
 }
 
 interface TableData {
@@ -28,10 +28,10 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
   const [tableData, setTableData] = useState<Record<string, TableData>>({});
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newTableName, setNewTableName] = useState("");
-  const [newColumns, setNewColumns] = useState<Column[]>([{ name: "", type: "text" }]);
+  const [newColumns, setNewColumns] = useState<Column[]>([{ name: "", type: "TEXT" }]);
   const { toast } = useToast();
 
-  const handleCreateTable = () => {
+  const handleCreateTable = async () => {
     if (!newTableName.trim() || newColumns.some((col) => !col.name.trim())) {
       toast({
         title: "Invalid input",
@@ -41,40 +41,99 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
       return;
     }
 
-    setTables([...tables, newTableName]);
-    setTableData({
-      ...tableData,
-      [newTableName]: {
-        name: newTableName,
-        columns: newColumns,
-        rows: [],
-      },
-    });
+    try {
+      const response = await fetch('http://localhost:3001/api/tables/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableName: newTableName,
+          columns: newColumns
+        })
+      });
 
-    toast({
-      title: "Table created",
-      description: `Table "${newTableName}" has been created successfully.`,
-    });
+      const result = await response.json();
 
-    setNewTableName("");
-    setNewColumns([{ name: "", type: "text" }]);
-    setIsCreateDialogOpen(false);
+      if (result.success) {
+        setTables([...tables, newTableName]);
+        setTableData({
+          ...tableData,
+          [newTableName]: {
+            name: newTableName,
+            columns: newColumns,
+            rows: [],
+          },
+        });
+
+        toast({
+          title: "Table created",
+          description: result.message,
+        });
+
+        setNewTableName("");
+        setNewColumns([{ name: "", type: "TEXT" }]);
+        setIsCreateDialogOpen(false);
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create table",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create table. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleAddRow = (tableName: string) => {
+  const handleAddRow = async (tableName: string) => {
     const table = tableData[tableName];
     const newRow: Record<string, string | number> = {};
     table.columns.forEach((col) => {
-      newRow[col.name] = col.type === "number" ? 0 : "";
+      newRow[col.name] = col.type === "INTEGER" || col.type === "REAL" ? 0 : "";
     });
 
-    setTableData({
-      ...tableData,
-      [tableName]: {
-        ...table,
-        rows: [...table.rows, newRow],
-      },
-    });
+    try {
+      const response = await fetch('http://localhost:3001/api/data/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableName,
+          data: newRow
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setTableData({
+          ...tableData,
+          [tableName]: {
+            ...table,
+            rows: [...table.rows, result.data],
+          },
+        });
+
+        toast({
+          title: "Row added",
+          description: "New row has been added successfully.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to add row",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add row. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeleteRow = (tableName: string, rowIndex: number) => {
@@ -94,7 +153,7 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
     const updatedRows = [...table.rows];
     updatedRows[rowIndex] = {
       ...updatedRows[rowIndex],
-      [columnName]: column?.type === "number" ? parseFloat(value) || 0 : value,
+      [columnName]: (column?.type === "INTEGER" || column?.type === "REAL") ? parseFloat(value) || 0 : value,
     };
 
     setTableData({
@@ -155,19 +214,24 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
                           value={col.type}
                           onChange={(e) => {
                             const updated = [...newColumns];
-                            updated[i].type = e.target.value as "text" | "number";
+                            updated[i].type = e.target.value as Column['type'];
                             setNewColumns(updated);
                           }}
                         >
-                          <option value="text">Text</option>
-                          <option value="number">Number</option>
+                          <option value="TEXT">Text</option>
+                          <option value="INTEGER">Integer</option>
+                          <option value="REAL">Decimal</option>
+                          <option value="BOOLEAN">Boolean</option>
+                          <option value="VARCHAR(255)">Varchar(255)</option>
+                          <option value="TIMESTAMP">Timestamp</option>
+                          <option value="JSONB">JSON</option>
                         </select>
                       </div>
                     ))}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setNewColumns([...newColumns, { name: "", type: "text" }])}
+                      onClick={() => setNewColumns([...newColumns, { name: "", type: "TEXT" }])}
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Add Column
@@ -229,19 +293,24 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
                       value={col.type}
                       onChange={(e) => {
                         const updated = [...newColumns];
-                        updated[i].type = e.target.value as "text" | "number";
+                        updated[i].type = e.target.value as Column['type'];
                         setNewColumns(updated);
                       }}
                     >
-                      <option value="text">Text</option>
-                      <option value="number">Number</option>
+                      <option value="TEXT">Text</option>
+                      <option value="INTEGER">Integer</option>
+                      <option value="REAL">Decimal</option>
+                      <option value="BOOLEAN">Boolean</option>
+                      <option value="VARCHAR(255)">Varchar(255)</option>
+                      <option value="TIMESTAMP">Timestamp</option>
+                      <option value="JSONB">JSON</option>
                     </select>
                   </div>
                 ))}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setNewColumns([...newColumns, { name: "", type: "text" }])}
+                  onClick={() => setNewColumns([...newColumns, { name: "", type: "TEXT" }])}
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Add Column
@@ -304,7 +373,7 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
                         {tableData[selectedTable].columns.map((col) => (
                           <td key={col.name} className="px-4 py-3">
                             <Input
-                              type={col.type === "number" ? "number" : "text"}
+                              type={(col.type === "INTEGER" || col.type === "REAL") ? "number" : "text"}
                               value={row[col.name]}
                               onChange={(e) => handleUpdateCell(selectedTable, rowIndex, col.name, e.target.value)}
                               className="border-0 bg-transparent focus-visible:ring-1"

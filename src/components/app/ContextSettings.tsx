@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -11,13 +11,72 @@ interface ContextSettingsProps {
 
 const ContextSettings = ({ tables }: ContextSettingsProps) => {
   const [contexts, setContexts] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSave = () => {
-    toast({
-      title: "Context saved",
-      description: "Your business logic and definitions have been saved successfully.",
-    });
+  // Load existing contexts on mount
+  useEffect(() => {
+    const loadContexts = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/context');
+        const result = await response.json();
+        
+        if (result.success && result.contexts) {
+          const contextMap: Record<string, string> = {};
+          result.contexts.forEach((ctx: any) => {
+            contextMap[ctx.tableName] = ctx.description;
+          });
+          setContexts(contextMap);
+        }
+      } catch (error) {
+        console.error('Failed to load contexts:', error);
+      }
+    };
+    
+    if (tables.length > 0) {
+      loadContexts();
+    }
+  }, [tables]);
+
+  const handleSave = async () => {
+    setLoading(true);
+    
+    try {
+      // Save each context
+      const savePromises = Object.entries(contexts)
+        .filter(([_, description]) => description.trim())
+        .map(([tableName, description]) =>
+          fetch('http://localhost:3001/api/context', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tableName, description })
+          })
+        );
+
+      const results = await Promise.all(savePromises);
+      const allSuccessful = results.every(r => r.ok);
+
+      if (allSuccessful) {
+        toast({
+          title: "Context saved",
+          description: "Your business logic and definitions have been saved successfully.",
+        });
+      } else {
+        toast({
+          title: "Partial success",
+          description: "Some contexts could not be saved. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save contexts. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (tables.length === 0) {
@@ -68,7 +127,9 @@ const ContextSettings = ({ tables }: ContextSettingsProps) => {
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={handleSave}>Save All</Button>
+        <Button onClick={handleSave} disabled={loading}>
+          {loading ? "Saving..." : "Save All"}
+        </Button>
       </div>
     </div>
   );
