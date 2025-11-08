@@ -203,7 +203,7 @@ Frontend → Next.js API Routes (/app/api/*) → Neon DB
 
 ### Phase 2: Chat Integration (Next)
 - Create `/api/chat` endpoint
-- Integrate with LLM (OpenAI/Anthropic)
+- Integrate with LLM (Google Gemini)
 - Implement RAG with pgvector
 - Generate SQL from natural language
 - Execute queries and return results

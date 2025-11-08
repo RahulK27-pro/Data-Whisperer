@@ -16,5 +16,5 @@ model TableContext {
   id          String  @id @default(cuid())
   tableName   String  @unique // The name of the table the user created, e.g., "travelers"
   description String  // The description from the frontend
-  embedding   Unsupported("vector(1536)")? // OpenAI ada-002 embeddings are 1536 dimensions
+  embedding   Unsupported("vector(768)")? // Gemini embedding-001 produces 768 dimensions
 }

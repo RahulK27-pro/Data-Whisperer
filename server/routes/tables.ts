@@ -20,8 +20,11 @@ const createTableSchema = z.object({
 // POST /api/tables/create - Create a new dynamic table
 router.post('/create', async (req: Request, res: Response) => {
   try {
+    console.log('Received table creation request:', JSON.stringify(req.body, null, 2));
+    
     // Validate input
     const { tableName, columns } = createTableSchema.parse(req.body);
+    console.log('Validation passed. Creating table:', tableName);
 
     // Build column definitions
     const columnDefinitions = columns.map((col) => {
@@ -52,6 +55,7 @@ router.post('/create', async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('Table creation validation error:', error.errors);
       return res.status(400).json({
         success: false,
         error: 'Validation error',

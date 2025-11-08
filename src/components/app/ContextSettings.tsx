@@ -54,17 +54,26 @@ const ContextSettings = ({ tables }: ContextSettingsProps) => {
         );
 
       const results = await Promise.all(savePromises);
-      const allSuccessful = results.every(r => r.ok);
+      
+      // Check for errors
+      const errors = [];
+      for (let i = 0; i < results.length; i++) {
+        if (!results[i].ok) {
+          const errorData = await results[i].json();
+          errors.push(errorData);
+          console.error('Save error:', errorData);
+        }
+      }
 
-      if (allSuccessful) {
+      if (errors.length === 0) {
         toast({
           title: "Context saved",
           description: "Your business logic and definitions have been saved successfully.",
         });
       } else {
         toast({
-          title: "Partial success",
-          description: "Some contexts could not be saved. Please try again.",
+          title: "Error saving context",
+          description: errors[0]?.error || "Some contexts could not be saved. Please try again.",
           variant: "destructive",
         });
       }

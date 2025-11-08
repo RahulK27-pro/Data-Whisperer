@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import tablesRouter from './routes/tables';
 import dataRouter from './routes/data';
 import contextRouter from './routes/context';
+import chatRouter from './routes/chat';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use('/api/tables', tablesRouter);
 app.use('/api/data', dataRouter);
 app.use('/api/context', contextRouter);
+app.use('/api/chat', chatRouter);
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {

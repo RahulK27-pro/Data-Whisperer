@@ -1,26 +1,23 @@
 import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize Gemini client
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Function to generate embeddings
+// Function to generate embeddings using Gemini
 async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-ada-002',
-      input: text,
-    });
-    return response.data[0].embedding;
+    const model = genAI.getGenerativeModel({ model: 'embedding-001' });
+    const result = await model.embedContent(text);
+    const embedding = result.embedding;
+    return embedding.values;
   } catch (error) {
-    console.error('Error generating embedding:', error);
+    console.error('Error generating embedding with Gemini:', error);
     throw error;
   }
 }
@@ -34,22 +31,41 @@ const contextSchema = z.object({
 // POST /api/context - Create or update table context
 router.post('/', async (req: Request, res: Response) => {
   try {
+    console.log('Received context save request:', req.body);
     const { tableName, description } = contextSchema.parse(req.body);
 
-    // Use upsert: create a new context or update the existing one
-    const context = await prisma.tableContext.upsert({
+    // Generate embedding from description
+    console.log('Generating embedding for:', tableName);
+    const embedding = await generateEmbedding(description.trim());
+    console.log('Embedding generated, length:', embedding.length);
+
+    // Convert embedding array to pgvector format string
+    const embeddingString = `[${embedding.join(',')}]`;
+
+    // Use raw SQL to upsert with vector field
+    // We need raw SQL because Prisma doesn't fully support the vector type yet
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "TableContext" (id, "tableName", description, embedding)
+      VALUES (gen_random_uuid(), $1, $2, $3::vector)
+      ON CONFLICT ("tableName")
+      DO UPDATE SET 
+        description = EXCLUDED.description,
+        embedding = EXCLUDED.embedding
+    `, tableName, description.trim(), embeddingString);
+
+    // Fetch the updated context to return
+    const context = await prisma.tableContext.findUnique({
       where: { tableName },
-      update: { description },
-      create: { tableName, description },
     });
 
     res.json({
       success: true,
-      message: 'Context saved successfully',
+      message: 'Context saved successfully with embedding',
       context,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('Validation error:', error.errors);
       return res.status(400).json({
         success: false,
         error: 'Validation error',

@@ -116,6 +116,8 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
     }
 
     try {
+      console.log('Creating table with data:', { tableName: newTableName, columns: newColumns });
+      
       const response = await fetch('http://localhost:3001/api/tables/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -126,6 +128,7 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
       });
 
       const result = await response.json();
+      console.log('Table creation response:', result);
 
       if (result.success) {
         setTables([...tables, newTableName]);
@@ -147,13 +150,21 @@ const DataManager = ({ tables, setTables }: DataManagerProps) => {
         setNewColumns([{ name: "", type: "TEXT" }]);
         setIsCreateDialogOpen(false);
       } else {
+        console.error('Table creation failed:', result);
+        console.error('Validation details:', result.details);
+        
+        const errorMsg = result.details 
+          ? `Validation error: ${result.details.map((d: any) => `${d.path.join('.')}: ${d.message}`).join(', ')}`
+          : result.error || "Failed to create table";
+        
         toast({
           title: "Error",
-          description: result.error || "Failed to create table",
+          description: errorMsg,
           variant: "destructive",
         });
       }
     } catch (error) {
+      console.error('Table creation error:', error);
       toast({
         title: "Error",
         description: "Failed to create table. Please try again.",
