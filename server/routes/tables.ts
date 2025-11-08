@@ -42,31 +42,8 @@ router.post('/create', async (req: Request, res: Response) => {
     // Execute the raw SQL
     await prisma.$executeRawUnsafe(createTableQuery);
 
-    // Create a trigger to auto-update the updated_at field (split into separate queries)
-    // 1. Create the function
-    const functionQuery = `
-      CREATE OR REPLACE FUNCTION update_${tableName}_updated_at()
-      RETURNS TRIGGER AS $$
-      BEGIN
-        NEW.updated_at = CURRENT_TIMESTAMP;
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql;
-    `;
-    await prisma.$executeRawUnsafe(functionQuery);
-
-    // 2. Drop existing trigger if it exists
-    const dropTriggerQuery = `DROP TRIGGER IF EXISTS ${tableName}_updated_at_trigger ON "${tableName}";`;
-    await prisma.$executeRawUnsafe(dropTriggerQuery);
-    
-    // 3. Create the trigger
-    const createTriggerQuery = `
-      CREATE TRIGGER ${tableName}_updated_at_trigger
-      BEFORE UPDATE ON "${tableName}"
-      FOR EACH ROW
-      EXECUTE FUNCTION update_${tableName}_updated_at();
-    `;
-    await prisma.$executeRawUnsafe(createTriggerQuery);
+    // Note: Skipping trigger creation due to Prisma limitations with raw SQL
+    // The updated_at field will need to be updated manually in the application
 
     res.json({
       success: true,
@@ -148,6 +125,45 @@ router.get('/:tableName/schema', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error getting table schema:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// POST /api/tables/alter - Add a column to an existing table
+router.post('/alter', async (req: Request, res: Response) => {
+  try {
+    const { tableName, columnName, columnType } = req.body;
+
+    // Validation
+    const tableNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+    if (!tableNameRegex.test(tableName) || !tableNameRegex.test(columnName)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid table or column name',
+      });
+    }
+
+    const allowedTypes = ['TEXT', 'INTEGER', 'REAL', 'BOOLEAN', 'TIMESTAMP', 'VARCHAR(255)', 'JSONB'];
+    if (!allowedTypes.includes(columnType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid column type',
+      });
+    }
+
+    // Add column using ALTER TABLE
+    const alterQuery = `ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${columnType};`;
+    await prisma.$executeRawUnsafe(alterQuery);
+
+    res.json({
+      success: true,
+      message: `Column '${columnName}' added to table '${tableName}' successfully`,
+    });
+  } catch (error) {
+    console.error('Error altering table:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

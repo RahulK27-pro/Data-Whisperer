@@ -1,11 +1,13 @@
 generator client {
   provider       = "prisma-client-js"
   packageManager = "npm"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 // THIS IS THE ONLY TABLE WE PRE-DEFINE
@@ -14,5 +16,5 @@ model TableContext {
   id          String  @id @default(cuid())
   tableName   String  @unique // The name of the table the user created, e.g., "travelers"
   description String  // The description from the frontend
-  // We will add the 'vector' field here later
+  embedding   Unsupported("vector(1536)")? // OpenAI ada-002 embeddings are 1536 dimensions
 }

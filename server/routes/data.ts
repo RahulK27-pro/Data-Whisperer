@@ -42,12 +42,12 @@ router.post('/add', async (req: Request, res: Response) => {
       RETURNING *;
     `;
 
-    const result = await prisma.$queryRawUnsafe(insertQuery, ...values);
+    const result = await prisma.$queryRawUnsafe(insertQuery, ...values) as any[];
 
     res.json({
       success: true,
       message: 'Data added successfully',
-      data: result,
+      data: result[0], // Return the first (and only) inserted row
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

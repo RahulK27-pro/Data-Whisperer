@@ -1,9 +1,29 @@
 import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import OpenAI from 'openai';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Function to generate embeddings
+async function generateEmbedding(text: string): Promise<number[]> {
+  try {
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-ada-002',
+      input: text,
+    });
+    return response.data[0].embedding;
+  } catch (error) {
+    console.error('Error generating embedding:', error);
+    throw error;
+  }
+}
 
 // Validation schema
 const contextSchema = z.object({
@@ -50,11 +70,12 @@ router.get('/:tableName', async (req: Request, res: Response) => {
   try {
     const { tableName } = req.params;
 
-    // Validate table name
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+    // Validate table name format
+    const tableNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+    if (!tableNameRegex.test(tableName)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid table name',
+        error: 'Invalid table name format',
       });
     }
 
