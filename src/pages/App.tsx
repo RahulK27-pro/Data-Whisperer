@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Database, Settings, MessageSquare, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { stack } from "@/lib/stack";
 import DataManager from "@/components/app/DataManager";
 import ContextSettings from "@/components/app/ContextSettings";
 import Chat from "@/components/app/Chat";
@@ -11,11 +12,49 @@ type Section = "data" | "context" | "chat";
 const AppPage = () => {
   const [activeSection, setActiveSection] = useState<Section>("data");
   const [tables, setTables] = useState<string[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const currentUser = await stack.getUser();
+        if (!currentUser) {
+          navigate("/auth");
+        } else {
+          setUser(currentUser);
+        }
+      } catch (error) {
+        navigate("/auth");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkAuth();
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    if (user) {
+      await user.signOut();
+    }
     navigate("/");
   };
+
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not logged in (will redirect)
+  if (!user) {
+    return null;
+  }
 
   const sectionTitles: Record<Section, string> = {
     data: "Data Manager",

@@ -1,0 +1,18 @@
+generator client {
+  provider       = "prisma-client-js"
+  packageManager = "npm"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// THIS IS THE ONLY TABLE WE PRE-DEFINE
+// It stores the "context" for all your dynamic tables
+model TableContext {
+  id          String  @id @default(cuid())
+  tableName   String  @unique // The name of the table the user created, e.g., "travelers"
+  description String  // The description from the frontend
+  // We will add the 'vector' field here later
+}

@@ -7,25 +7,61 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { stack } from "@/lib/stack";
+import { useEffect } from "react";
 
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const user = await stack.getUser();
+      if (user) {
+        setCurrentUser(user);
+        navigate("/app");
+      }
+    };
+    checkUser();
+  }, [navigate]);
 
   const handleAuth = async (e: React.FormEvent, type: "login" | "signup") => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate auth process
-    setTimeout(() => {
-      setIsLoading(false);
+
+    const form = e.target as HTMLFormElement;
+    const email = form.elements.namedItem(type === 'login' ? 'login-email' : 'signup-email') as HTMLInputElement;
+    const password = form.elements.namedItem(type === 'login' ? 'login-password' : 'signup-password') as HTMLInputElement;
+
+    try {
+      if (type === "login") {
+        await stack.signInWithCredential({
+          email: email.value,
+          password: password.value,
+        });
+      } else {
+        await stack.signUpWithCredential({
+          email: email.value,
+          password: password.value,
+        });
+      }
       toast({
         title: type === "login" ? "Welcome back!" : "Account created!",
         description: "Redirecting to your dashboard...",
       });
       navigate("/app");
-    }, 1000);
+    } catch (error) {
+      toast({
+        title: "Authentication failed",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
