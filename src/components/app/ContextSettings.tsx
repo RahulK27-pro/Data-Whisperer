@@ -14,25 +14,25 @@ const ContextSettings = ({ tables }: ContextSettingsProps) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Load existing contexts on mount
-  useEffect(() => {
-    const loadContexts = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/context');
-        const result = await response.json();
-        
-        if (result.success && result.contexts) {
-          const contextMap: Record<string, string> = {};
-          result.contexts.forEach((ctx: any) => {
-            contextMap[ctx.tableName] = ctx.description;
-          });
-          setContexts(contextMap);
-        }
-      } catch (error) {
-        console.error('Failed to load contexts:', error);
+  const loadContexts = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/context');
+      const result = await response.json();
+
+      if (result.success && result.contexts) {
+        const contextMap: Record<string, string> = {};
+        result.contexts.forEach((ctx: any) => {
+          contextMap[ctx.tableName] = ctx.description;
+        });
+        setContexts(contextMap);
       }
-    };
-    
+    } catch (error) {
+      console.error('Failed to load contexts:', error);
+    }
+  };
+
+  // Load existing contexts on mount and when tables change
+  useEffect(() => {
     if (tables.length > 0) {
       loadContexts();
     }
@@ -66,6 +66,9 @@ const ContextSettings = ({ tables }: ContextSettingsProps) => {
       }
 
       if (errors.length === 0) {
+        // Reload from database so UI always reflects persisted values
+        await loadContexts();
+
         toast({
           title: "Context saved",
           description: "Your business logic and definitions have been saved successfully.",
